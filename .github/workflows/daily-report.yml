@@ -1,0 +1,45 @@
+name: Daily US Market Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional report date, YYYY-MM-DD"
+        required: false
+        type: string
+  schedule:
+    # 21:30 UTC Monday-Friday = 05:30 Asia/Shanghai Tuesday-Saturday.
+    # This is after the regular US equity close during daylight saving time.
+    - cron: "30 21 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate report
+        run: |
+          if [ -n "${{ github.event.inputs.date }}" ]; then
+            node scripts/generate-report.mjs --date="${{ github.event.inputs.date }}"
+          else
+            node scripts/generate-report.mjs
+          fi
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html archive scripts .github .nojekyll .gitignore
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update daily market report"
+            git push
+          fi
